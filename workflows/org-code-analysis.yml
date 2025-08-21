@@ -20,11 +20,27 @@ jobs:
           CHANGED_FILES=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }} HEAD | grep php | wc -l)
           echo "changed=$CHANGED_FILES" >> $GITHUB_OUTPUT
 
+  phpcs_pre_check:
+    runs-on: ubuntu-latest
+    outputs:
+      exists: ${{ steps.check.outputs.exists }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Check for phpcs.xml
+        id: check
+        run: |
+          if [ -f phpcs.xml ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
   phpcs:
     name: PHP_CodeSniffer
-    needs: check_php_files_changed
+    needs: [check_php_files_changed, phpcs_pre_check]
     runs-on: ubuntu-latest
-    if: needs.check_php_files_changed.outputs.changed != '0'
+    if: needs.check_php_files_changed.outputs.changed != '0' && needs.phpcs_pre_check.outputs.exists == 'true'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -33,7 +49,6 @@ jobs:
       - name: Setup PHP with PECL extension
         uses: shivammathur/setup-php@v2
         with:
-          php-version: "7.3"
           tools: phpcs, cs2pr, composer
           extensions: mbstring, json, dom
       - name: Run PHP_CodeSniffer (Errors only)
